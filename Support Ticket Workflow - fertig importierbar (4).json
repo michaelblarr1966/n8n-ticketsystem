@@ -1,0 +1,728 @@
+{
+  "name": "Support Ticket Workflow - fertig importierbar",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Code in JavaScript').item.json.ticketId }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "45ad35ab-7fa5-4777-aa20-f9bc626c2e18",
+      "name": "Bestehendes Ticket?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "collection": "tickets",
+        "options": {
+          "limit": 1
+        },
+        "query": "={\"ticket_id\":\"{{$json.existing_ticket_id}}\"}"
+      },
+      "id": "b114a7b6-5583-41bb-938b-3d70e85a0fa1",
+      "name": "Ticket laden",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        128,
+        64
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$items(\"Ticket laden\").length}}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "id": "954145f1-4fd7-47b4-a9b3-c6105cb46cd2",
+      "name": "Ticket gefunden?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        352,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  json: {\n    ticket_id: $json.existing_ticket_id,\n    message_id: $json.message_id,\n    customer_email: $json.customer_email,\n    customer_name: $json.customer_name,\n    message: $json.message,\n    subject: $json.subject,\n    received_at: $json.received_at,\n    direction: 'inbound'\n  }\n}];\n"
+      },
+      "id": "ef25e11f-be24-4ab4-a008-fca592be4f1f",
+      "name": "Bestehende Nachricht vorbereiten",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        576,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "ticket_messages",
+        "fields": "={{$json}}",
+        "options": {}
+      },
+      "id": "e386ac51-9197-49ed-9009-f2e99f1326e2",
+      "name": "Nachricht speichern bestehend",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -32
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "tickets",
+        "fields": "={{ {\"$set\": {\"updated_at\": $now.toISO(), \"last_message_at\": $now.toISO(), \"status\": \"open\"}} }}",
+        "options": {}
+      },
+      "id": "8046a51c-dc1d-4d7a-add4-0befe61f5248",
+      "name": "Ticket aktualisieren",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        -32
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const text = ($json.message || '').toLowerCase();\n\nlet category = 'Allgemein';\nlet team = 'Support';\nlet priority = 'Normal';\n\nif (/login|passwort|anmeldung|zugang/.test(text)) {\n  category = 'Login';\n  team = 'Support';\n} else if (/lieferung|versand|tracking|paket/.test(text)) {\n  category = 'Lieferung';\n  team = 'Logistik';\n} else if (/zahlung|rechnung|paypal|kreditkarte/.test(text)) {\n  category = 'Zahlung';\n  team = 'Buchhaltung';\n}\n\nif (/dringend|sofort|kritisch|ausfall/.test(text)) priority = 'High';\nif (/system down|komplett down|totalausfall/.test(text)) priority = 'Critical';\n\nconst now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst ms = String(now.getMilliseconds()).padStart(3, '0');\nconst ticketId = `TCK-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${ms}`;\n\nreturn [{\n  json: {\n    ...$json,\n    ticket_id: ticketId,\n    category,\n    team,\n    priority,\n    status: 'open',\n    created_at: now.toISOString(),\n    updated_at: now.toISOString()\n  }\n}];\n"
+      },
+      "id": "bc29ccc9-5370-42b0-b339-6252d61ea75c",
+      "name": "Neues Ticket vorbereiten",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        352,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  json: {\n    ticket_id: $json.ticket_id,\n    customer_email: $json.fromEmail,\n    customer_name: $json.fromName,\n    subject: $json.subject,\n    category: $json.category,\n    team: $json.team,\n    priority: $json.priority,\n    status: $json.status,\n    created_at: $json.created_at,\n    updated_at: $json.updated_at,\n    last_message_at: $json.created_at,\n    thread_key: $json.thread_key\n  }\n}];\n"
+      },
+      "id": "d5088f85-1968-4c3d-b5c7-2a56a6738d7a",
+      "name": "Ticket Dokument bauen",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        576,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "tickets",
+        "fields": "=ticket_id, customer_email, customer_name, subject, category, team, priority, status, created_at, updated_at, last_message_at",
+        "options": {}
+      },
+      "id": "6c2512ac-111e-4b54-bad3-9928cf13577e",
+      "name": "Neues Ticket speichern",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        800,
+        384
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "ticket_messages",
+        "fields": "=customer_email,customer_name,message_id,subject,body, ticket_id, created_at",
+        "options": {}
+      },
+      "id": "42cabf47-7fc9-4039-974d-b1ac613213ed",
+      "name": "Erste Nachricht speichern",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        384
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const input = $items(\"Neues Ticket vorbereiten\")[0].json;\nreturn [{ json: input }];\n"
+      },
+      "id": "6e858bdc-f15d-4d5c-ac7a-6866edf122aa",
+      "name": "Maildaten für Versand",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { status: 'ticket_not_found', ticket_id: $json.existing_ticket_id, message_id: $json.message_id } }];"
+      },
+      "id": "a4d40b1f-89e7-4e43-8123-e6badf75a169",
+      "name": "Fehler Ticket fehlt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        576,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const subject = $json.subject ?? '';\n\nconst html = $json.html ?? '';\nconst text = $json.textPlain ?? $json.text ?? '';\n\nconst fromEmail = $json.from.value[0].address ??'';\nconst fromName = $json.from.value[0].name ?? '';\n\n\n\nconst body = String(text || html || '')\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst messageId =\n  $json.messageId ??\n  $json.headers?.['message-id'] ??\n  $json.metadata?.['message-id'] ??\n  $json.headers?.['Message-ID'] ??\n  $json.message_id ??\n  '';\n\n// Ticket-ID aus Subject + Body extrahieren\nconst content = `${subject} ${body}`;\nconst ticketMatch = content.match(/TCK-\\d{8}-\\d{6}-\\d+/i);\nconst ticketId = ticketMatch ? ticketMatch[0] : null;\n\nreturn {\n  subject,\n  body,\n  html,\n  text,\n  fromEmail,\n  fromName,\n  messageId,\n  ticketId,\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        192
+      ],
+      "id": "831ec3db-ef70-4e60-8ddf-1735f5b9e3a8",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1767967-2100-4bd1-b773-b450cec89c2c",
+              "name": "customer_email",
+              "value": "={{ $json.customer_email }}",
+              "type": "string"
+            },
+            {
+              "id": "7dcf38b7-1da7-4162-93a5-f56a6f5f6c41",
+              "name": "customer_name",
+              "value": "={{ $json.customer_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a9a4f816-e8a9-4c67-8ad8-23f52652e059",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "980e9e05-0ddc-4303-90e3-541338c87aed",
+              "name": "message_id",
+              "value": "={{ $('Neues Ticket vorbereiten').item.json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "ffc9697f-2f58-4846-983b-c233eec33329",
+              "name": "body",
+              "value": "={{ $('Neues Ticket vorbereiten').item.json.body }}",
+              "type": "string"
+            },
+            {
+              "id": "4dd250e0-2078-4623-b5f8-4cac594c0154",
+              "name": "ticket_id",
+              "value": "={{ $json.ticket_id }}",
+              "type": "string"
+            },
+            {
+              "id": "403b5511-631c-4851-bfbe-037a03643194",
+              "name": "created_at",
+              "value": "={{ $json.created_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1024,
+        384
+      ],
+      "id": "84cd9631-b536-4cf6-b734-60bfbfe5c5ba",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1216,
+        288
+      ],
+      "id": "6cd7dcff-cc55-496d-b9e7-27b55f5e92bc",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CNh39ycZZBgHK04r",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -992,
+        192
+      ],
+      "id": "860254d2-28b7-42c0-a396-2b1b60d0d67b",
+      "name": "Get a message",
+      "webhookId": "62e2a0b0-d01c-4250-8787-ceb8a0990388",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CNh39ycZZBgHK04r",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -992,
+        416
+      ],
+      "id": "fee8a24e-db80-4538-afcf-9c591086c88d",
+      "name": "Get a message1",
+      "webhookId": "494299fb-f29d-4e43-8984-244e61df3b18",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CNh39ycZZBgHK04r",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "collection": "ticket_messages",
+        "options": {},
+        "query": "={\"message_id\":  \"{{ $json.messageId }}\"}"
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        -544,
+        112
+      ],
+      "id": "c83ed501-5d14-4aa7-838c-b6a591e15616",
+      "name": "Find documents",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "WxqnmlA8Pik2lVbJ",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e9f84178-7a88-4524-b08d-e24d25ba54fc",
+              "leftValue": "={{ $json.message_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -320,
+        112
+      ],
+      "id": "c7c683a9-9e51-4048-ba2e-e07500b89d14",
+      "name": "duplikate gefunden"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        128,
+        368
+      ],
+      "id": "16d1b505-1c54-4e0c-8633-4bd77e86f671",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "sendTo": "michaelblarr.21081966@gmail.com",
+        "subject": "Ticket ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1232,
+        -32
+      ],
+      "id": "315df62d-6555-4377-92b9-fe2ac6c3ff5e",
+      "name": "Send a message",
+      "webhookId": "daac1e1a-5393-4289-8193-3ba3ece4f097",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CNh39ycZZBgHK04r",
+          "name": "Gmail account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sendTo": "michaelblarr.21081966@gmail.com",
+        "subject": "=Ticket {{ $json.ticketId }}",
+        "emailType": "text",
+        "message": "Das Ticket ist bei uns eingegangen und wird schnellst möglich bearbeitet",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        384
+      ],
+      "id": "2e0ec01b-5d0e-45e6-9039-b6b03d447c7b",
+      "name": "Send a message1",
+      "webhookId": "96842139-de3a-4a75-a6ac-b670333a721b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CNh39ycZZBgHK04r",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Bestehendes Ticket?": {
+      "main": [
+        [
+          {
+            "node": "Ticket laden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket laden": {
+      "main": [
+        [
+          {
+            "node": "Ticket gefunden?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket gefunden?": {
+      "main": [
+        [
+          {
+            "node": "Bestehende Nachricht vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fehler Ticket fehlt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bestehende Nachricht vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Nachricht speichern bestehend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nachricht speichern bestehend": {
+      "main": [
+        [
+          {
+            "node": "Ticket aktualisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Neues Ticket vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Ticket Dokument bauen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket Dokument bauen": {
+      "main": [
+        [
+          {
+            "node": "Neues Ticket speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Neues Ticket speichern": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erste Nachricht speichern": {
+      "main": [
+        [
+          {
+            "node": "Maildaten für Versand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket aktualisieren": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Find documents",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Erste Nachricht speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message1": {
+      "main": [
+        []
+      ]
+    },
+    "Find documents": {
+      "main": [
+        [
+          {
+            "node": "duplikate gefunden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "duplikate gefunden": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Bestehendes Ticket?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Neues Ticket vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maildaten für Versand": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "4ab21e20-9288-4da3-8f0b-2536a5247309",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a55a7adc72d591675f9ee2e1155e8f9e57f1c5deda762a8d7eefc59baa2c1fe"
+  },
+  "id": "UQKbIrcxNbW5MoVZ4m_Sb",
+  "tags": []
+}
