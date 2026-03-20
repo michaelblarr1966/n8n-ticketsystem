@@ -1,0 +1,36 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpass123
+    ports:
+      - "27017:27017"  
+    volumes:
+      - ./mongo_data:/data/db
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "5678:5678"
+    environment:
+      DB_TYPE: mongodb
+      DB_MONGODB_CONNECTION_URL: mongodb://root:rootpass123@mongodb:27017
+      N8N_PORT: 5678
+      GENERIC_TIMEZONE: Europe/Berlin
+      #WEBHOOK_URL: ${NGROK_URL}
+      #N8N_EDITOR_BASE_URL: ${NGROK_URL}
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: ["http", "n8n:5678"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"

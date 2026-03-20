@@ -1,0 +1,15 @@
+exit
+show collections
+db.ticket_messages.find().pretty()db.tickets.find().pretty()show collectionsuse ticketing
+db.ticket_messages.find().pretty()
+db.tickets.find().pretty()
+show collections
+db.tickets.find().pretty()
+})  thread_key: "kunde@example.com"  message_id: "<abc123@example.com>",  assigned_team: "it-support@deinefirma.de",  status: "Neu",  priority: "High",  category: "Technical",  subject: "Login funktioniert nicht",  customer_name: "Max Mustermann",  customer_email: "kunde@example.com",  updated_at: new Date().toISOString(),  created_at: new Date().toISOString(),  ticket_id: "TCK-20260311-153015",db.tickets.insertOne({
+db.ticket_messages.createIndex({ created_at: -1 })db.ticket_messages.createIndex({ message_id: 1 }, { unique: true })db.ticket_messages.createIndex({ ticket_id: 1 })
+db.tickets.createIndex({ updated_at: -1 })db.tickets.createIndex({ assigned_team: 1 })db.tickets.createIndex({ status: 1 })db.tickets.createIndex({ customer_email: 1 })db.tickets.createIndex({ message_id: 1 })db.tickets.createIndex({ ticket_id: 1 }, { unique: true })
+show collections
+db.createCollection("ticket_messages")
+db.createCollection("tickets")
+db
+use ticketing
